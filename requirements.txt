@@ -1,7 +1,5 @@
-altair
 numpy
 pandas
-pydeck
 streamlit
 cv2
-pillow
+Pillow
