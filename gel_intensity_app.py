@@ -13,7 +13,7 @@ def calculate_intensity(image, roi_coords):
     mean_intensity = np.mean(roi_array)
     return total_intensity, mean_intensity
 
-def auto_detect_bands(image, min_contour_area):
+def auto_detect_bands(image, min_contour_area, max_contour_area):
     """Automatically detect bands in the gel image using image processing"""
     img_array = np.array(image)
     blurred = cv2.GaussianBlur(img_array, (5, 5), 0)
@@ -21,8 +21,9 @@ def auto_detect_bands(image, min_contour_area):
     contours, _ = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     rois = []
     for cnt in contours:
-        x, y, w, h = cv2.boundingRect(cnt)
-        if cv2.contourArea(cnt) > min_contour_area:
+        area = cv2.contourArea(cnt)
+        if min_contour_area <= area <= max_contour_area:
+            x, y, w, h = cv2.boundingRect(cnt)
             rois.append((x, y, x+w, y+h))
     return rois
 
@@ -48,8 +49,9 @@ def main():
             y_end = st.slider('End Y', min_value=0, max_value=image.height, value=int(image.height/2))
             roi_name = st.text_input("Name this ROI", "")
 
-            st.write("Settings")
+            st.write("Auto-Detect Settings")
             min_contour_area = st.slider("Min Contour Area", min_value=10, max_value=1000, value=100, step=10)
+            max_contour_area = st.slider("Max Contour Area", min_value=100, max_value=5000, value=1000, step=10)
             auto_detect = st.button('Auto-detect Bands')
 
         if 'roi_list' not in st.session_state:
@@ -57,7 +59,7 @@ def main():
 
         # Auto-detection and manual confirmation buttons
         if auto_detect:
-            auto_rois = auto_detect_bands(image, min_contour_area)
+            auto_rois = auto_detect_bands(image, min_contour_area, max_contour_area)
             for i, roi_coords in enumerate(auto_rois):
                 name = f'Auto-{i}'
                 st.session_state.roi_list[name] = {'coords': roi_coords}
