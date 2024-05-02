@@ -1,45 +1,52 @@
 import streamlit as st
-import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
+
+def display_roi(img, x_start, x_end, y_start, y_end):
+    """ Draw rectangle on the image """
+    img_copy = img.copy()
+    draw = ImageDraw.Draw(img_copy)
+    draw.rectangle([x_start, y_start, x_end, y_end], outline="red", width=2)
+    return img_copy
 
 def calculate_intensity(roi):
-    """Calculate the mean intensity of the selected ROI."""
-    return np.mean(roi)
+    """ Calculate the mean intensity of the selected ROI """
+    return np.mean(np.array(roi))
 
 def main():
     st.title('Gel Band Intensity Analyzer')
 
-    # Upload an image
     uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
+        image = Image.open(uploaded_file).convert('L')  # Convert image to grayscale
+        
+        # Invert colors option
+        invert = st.checkbox("Invert image colors")
+        if invert:
+            image = ImageOps.invert(image)
+        
+        # Displaying the image
+        img_array = np.array(image)
+        st.image(img_array, caption='Uploaded Image.', use_column_width=True)
+
+        # ROI selection
+        roi_details = st.text_input("Enter ROI coordinates as x_start, y_start, width, height", "0,0,100,100")
         try:
-            image = Image.open(uploaded_file).convert('L')  # Convert image to grayscale
-            image_array = np.array(image)
-
-            # Display the image
-            st.image(image, caption='Uploaded Image.', use_column_width=True)
-
-            # Select ROI coordinates via sliders
-            st.write("Select the Region of Interest (ROI) coordinates:")
-            cols = st.columns(2)
-            x_start = cols[0].slider('Start X', min_value=0, max_value=image.width, value=0)
-            x_end = cols[0].slider('End X', min_value=0, max_value=image.width, value=int(image.width/2))
-            y_start = cols[1].slider('Start Y', min_value=0, max_value=image.height, value=0)
-            y_end = cols[1].slider('End Y', min_value=0, max_value=image.height, value=int(image.height/2))
-
-            # Button to calculate intensity
-            if st.button('Calculate Intensity'):
-                if x_end > x_start and y_end > y_start:
-                    roi = image_array[y_start:y_end, x_start:x_end]
+            x_start, y_start, width, height = map(int, roi_details.split(','))
+            x_end = x_start + width
+            y_end = y_start + height
+            if x_end <= image.width and y_end <= image.height:
+                roi_img = display_roi(image, x_start, x_end, y_start, y_end)
+                st.image(roi_img, caption='ROI Selected', use_column_width=True)
+                
+                if st.button('Calculate Intensity'):
+                    roi = image.crop((x_start, y_start, x_end, y_end))
                     intensity = calculate_intensity(roi)
-                    st.write(f'Average Intensity: {intensity}')
-                else:
-                    st.error('Invalid ROI coordinates. Please ensure that End X > Start X and End Y > Start Y.')
-        except Exception as e:
-            st.error(f"Error processing the image: {e}")
-    else:
-        st.write("No image uploaded yet. Please upload an image.")
+                    st.write(f'ROI Intensity: {intensity}')
+            else:
+                st.error("ROI coordinates are out of image bounds.")
+        except:
+            st.error("Invalid ROI format. Please enter as x_start, y_start, width, height.")
 
 if __name__ == '__main__':
     main()
