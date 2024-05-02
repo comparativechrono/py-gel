@@ -13,20 +13,20 @@ def calculate_intensity(image, roi_coords):
     mean_intensity = np.mean(roi_array)
     return total_intensity, mean_intensity
 
-def auto_detect_bands(image, min_size, max_size):
+def auto_detect_bands(image, min_size, max_size, aspect_ratio):
     """Automatically detect bands using adaptive thresholding and morphology"""
     img_array = np.array(image)
-    img_blur = cv2.GaussianBlur(img_array, (5, 5), 0)
-    img_thresh = cv2.adaptiveThreshold(img_blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+    blurred = cv2.GaussianBlur(img_array, (5, 5), 0)
+    img_thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
                                        cv2.THRESH_BINARY_INV, 11, 2)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))  # Adjust size based on expected band orientation
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
     img_morph = cv2.morphologyEx(img_thresh, cv2.MORPH_OPEN, kernel)
 
     contours, _ = cv2.findContours(img_morph, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     rois = []
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)
-        if min_size <= w*h <= max_size:
+        if min_size <= w*h <= max_size and w/h >= aspect_ratio:
             rois.append((x, y, x+w, y+h))
     return rois
 
@@ -55,14 +55,19 @@ def main():
             st.write("Auto-Detect Settings")
             min_size = st.slider("Min Size", min_value=10, max_value=1000, value=100, step=10)
             max_size = st.slider("Max Size", min_value=100, max_value=5000, value=1000, step=10)
+            aspect_ratio = st.slider("Min Width/Height Ratio", min_value=1.0, max_value=5.0, value=3.0, step=0.1)
             auto_detect = st.button('Auto-detect Bands')
+            clear_rois = st.button('Clear All ROIs')
 
         if 'roi_list' not in st.session_state:
             st.session_state.roi_list = {}
 
-        # Auto-detection and manual confirmation buttons
+        # Handle ROI management
+        if clear_rois:
+            st.session_state.roi_list = {}
+
         if auto_detect:
-            auto_rois = auto_detect_bands(image, min_size, max_size)
+            auto_rois = auto_detect_bands(image, min_size, max_size, aspect_ratio)
             for i, roi_coords in enumerate(auto_rois):
                 name = f'Auto-{i}'
                 st.session_state.roi_list[name] = {'coords': roi_coords}
