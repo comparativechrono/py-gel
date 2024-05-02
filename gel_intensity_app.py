@@ -26,7 +26,7 @@ def find_bands(image, percentile_threshold, continuity, min_band_length):
         if column[max_intensity_y] >= intensity_threshold:
             high_intensity_y.append((x, max_intensity_y))
 
-    # Group high-intensity points
+    # Group high-intensity points into bands
     bands = []
     current_band = [high_intensity_y[0]]
 
@@ -37,11 +37,13 @@ def find_bands(image, percentile_threshold, continuity, min_band_length):
             current_band.append(current_point)
         else:
             if len(current_band) > min_band_length:
-                bands.append(current_band)
+                x_values, y_values = zip(*current_band)
+                bands.append((min(x_values), min(y_values), max(x_values), max(y_values)))
             current_band = [current_point]
 
     if len(current_band) > min_band_length:
-        bands.append(current_band)
+        x_values, y_values = zip(*current_band)
+        bands.append((min(x_values), min(y_values), max(x_values), max(y_values)))
 
     return bands
 
@@ -56,7 +58,7 @@ def main():
         if invert:
             image = ImageOps.invert(image)
 
-        img_array = np.array(image)  # Use the original image for display and calculations
+        img_array = np.array(image)
 
         with st.sidebar:
             st.write("Manual ROI Coordinates")
@@ -81,18 +83,16 @@ def main():
             st.session_state.roi_list = {}
 
         if auto_detect:
-            st.session_state.bands = find_bands(image, percentile_threshold, continuity, min_band_length)
+            detected_bands = find_bands(image, percentile_threshold, continuity, min_band_length)
+            for i, band in enumerate(detected_bands):
+                st.session_state.roi_list[f'Auto-Band-{i}'] = {'coords': band}
 
         if confirm_roi and roi_name:
             st.session_state.roi_list[roi_name] = {'coords': (x_start, y_start, x_end, y_end)}
 
-        # Display image with detected bands and manual ROIs
+        # Display image with all ROIs
         fig, ax = plt.subplots()
         ax.imshow(img_array, cmap='gray')
-
-        for band in getattr(st.session_state, 'bands', []):
-            xs, ys = zip(*band)
-            ax.plot(xs, ys, 'r-', linewidth=2)
 
         for name, roi in st.session_state.roi_list.items():
             coords = roi['coords']
