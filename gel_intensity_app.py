@@ -22,35 +22,38 @@ def main():
             image = ImageOps.invert(image)
 
         img_array = np.array(image)
-        fig, ax = plt.subplots()
-        ax.imshow(img_array, cmap='gray')
-
+        
         # Store multiple ROIs
-        rois = []
-
-        # Define interface for multiple ROIs
         if 'roi_list' not in st.session_state:
             st.session_state.roi_list = []
 
-        # Add ROI with button
-        with st.form("roi_form"):
-            col1, col2 = st.columns(2)
-            with col1:
-                x_start = st.number_input('Start X', min_value=0, max_value=image.width, value=0)
-                y_start = st.number_input('Start Y', min_value=0, max_value=image.height, value=0)
-            with col2:
-                width = st.number_input('Width', min_value=1, max_value=image.width - x_start, value=100)
-                height = st.number_input('Height', min_value=1, max_value=image.height - y_start, value=100)
-            
-            submit_button = st.form_submit_button("Add ROI")
-            if submit_button:
-                st.session_state.roi_list.append((x_start, y_start, width, height))
+        # Sliders for adjusting ROI dynamically
+        x_start = st.slider('Start X', min_value=0, max_value=image.width, value=0)
+        y_start = st.slider('Start Y', min_value=0, max_value=image.height, value=0)
+        width = st.slider('Width', min_value=1, max_value=image.width - x_start, value=100)
+        height = st.slider('Height', min_value=1, max_value=image.height - y_start, value=100)
 
-        # Draw all ROIs on the image
+        # Display image with all ROIs
+        fig, ax = plt.subplots()
+        ax.imshow(img_array, cmap='gray')
         for roi in st.session_state.roi_list:
             rect = plt.Rectangle((roi[0], roi[1]), roi[2], roi[3], linewidth=1, edgecolor='r', facecolor='none')
             ax.add_patch(rect)
+
+        # Temporary ROI for visualization
+        rect = plt.Rectangle((x_start, y_start), width, height, linewidth=1, edgecolor='b', facecolor='none', linestyle="--")
+        ax.add_patch(rect)
         st.pyplot(fig)
+
+        # Confirm or discard the temporary ROI
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Confirm ROI"):
+                st.session_state.roi_list.append((x_start, y_start, width, height))
+        with col2:
+            if st.button("Discard ROI"):
+                # Just redisplay the image without adding the ROI
+                st.experimental_rerun()
 
         # Display intensities for all ROIs
         if st.button('Calculate Intensities for All ROIs'):
