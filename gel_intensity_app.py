@@ -1,13 +1,6 @@
 import streamlit as st
 import numpy as np
-from PIL import Image, ImageOps
-
-def display_roi(img, x_start, x_end, y_start, y_end):
-    """ Draw rectangle on the image """
-    img_copy = img.copy()
-    draw = ImageDraw.Draw(img_copy)
-    draw.rectangle([x_start, y_start, x_end, y_end], outline="red", width=2)
-    return img_copy
+from PIL import Image, ImageOps, ImageDraw
 
 def calculate_intensity(roi):
     """ Calculate the mean intensity of the selected ROI """
@@ -36,8 +29,10 @@ def main():
             x_end = x_start + width
             y_end = y_start + height
             if x_end <= image.width and y_end <= image.height:
-                roi_img = display_roi(image, x_start, x_end, y_start, y_end)
-                st.image(roi_img, caption='ROI Selected', use_column_width=True)
+                img_copy = image.copy()
+                draw = ImageDraw.Draw(img_copy)
+                draw.rectangle([x_start, y_start, x_end, y_end], outline="red", width=2)
+                st.image(img_copy, caption='ROI Selected', use_column_width=True)
                 
                 if st.button('Calculate Intensity'):
                     roi = image.crop((x_start, y_start, x_end, y_end))
