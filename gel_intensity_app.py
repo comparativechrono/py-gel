@@ -13,22 +13,22 @@ def calculate_intensity(image, roi_coords):
     mean_intensity = np.mean(roi_array)
     return total_intensity, mean_intensity
 
-def auto_detect_bands(image, min_size, max_size, aspect_ratio):
-    """Automatically detect bands using adaptive thresholding and morphology"""
-    img_array = np.array(image)
-    blurred = cv2.GaussianBlur(img_array, (5, 5), 0)
-    img_thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                       cv2.THRESH_BINARY_INV, 11, 2)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
-    img_morph = cv2.morphologyEx(img_thresh, cv2.MORPH_OPEN, kernel)
-
-    contours, _ = cv2.findContours(img_morph, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+def auto_detect_bands(thresholded_image, original_image, min_size, max_size, aspect_ratio):
+    """Automatically detect bands using binary thresholding and morphology"""
+    img_array = np.array(thresholded_image)
+    contours, _ = cv2.findContours(img_array, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     rois = []
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)
         if min_size <= w*h <= max_size and w/h >= aspect_ratio:
             rois.append((x, y, x+w, y+h))
     return rois
+
+def preprocess_image(image):
+    """Apply binary thresholding to the image for better band detection"""
+    img_array = np.array(image)
+    _, img_thresh = cv2.threshold(img_array, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return img_thresh
 
 def main():
     st.title('Gel Band Intensity Analyzer')
@@ -41,15 +41,16 @@ def main():
         if invert:
             image = ImageOps.invert(image)
 
-        img_array = np.array(image)
+        # Preprocess image for detection
+        thresholded_image = preprocess_image(image)
+        img_array = np.array(image)  # Use the original image for display and calculations
 
-        # Sidebar for controls
         with st.sidebar:
             st.write("Manual ROI Coordinates")
             x_start = st.slider('Start X', min_value=0, max_value=image.width, value=0)
             y_start = st.slider('Start Y', min_value=0, max_value=image.height, value=0)
-            x_end = st.slider('End X', min_value=0, max_value=image.width, value=int(image.width/2))
-            y_end = st.slider('End Y', min_value=0, max_value=image.height, value=int(image.height/2))
+            x_end = st.slider('End X', min_value=0, max_value=image.width, value=image.width // 2)
+            y_end = st.slider('End Y', min_value=0, max_value=image.height, value=image.height // 2)
             roi_name = st.text_input("Name this ROI", "")
 
             st.write("Auto-Detect Settings")
@@ -62,12 +63,11 @@ def main():
         if 'roi_list' not in st.session_state:
             st.session_state.roi_list = {}
 
-        # Handle ROI management
         if clear_rois:
             st.session_state.roi_list = {}
 
         if auto_detect:
-            auto_rois = auto_detect_bands(image, min_size, max_size, aspect_ratio)
+            auto_rois = auto_detect_bands(thresholded_image, image, min_size, max_size, aspect_ratio)
             for i, roi_coords in enumerate(auto_rois):
                 name = f'Auto-{i}'
                 st.session_state.roi_list[name] = {'coords': roi_coords}
