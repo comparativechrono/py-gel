@@ -13,10 +13,9 @@ def calculate_intensity(image, roi_coords):
     mean_intensity = np.mean(roi_array)
     return total_intensity, mean_intensity
 
-def auto_detect_bands(thresholded_image, original_image, min_size, max_size, aspect_ratio):
-    """Automatically detect bands using binary thresholding and morphology"""
-    img_array = np.array(thresholded_image)
-    contours, _ = cv2.findContours(img_array, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+def auto_detect_bands(processed_image, min_size, max_size, aspect_ratio):
+    """Automatically detect bands using adaptive thresholding"""
+    contours, _ = cv2.findContours(processed_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     rois = []
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)
@@ -25,9 +24,11 @@ def auto_detect_bands(thresholded_image, original_image, min_size, max_size, asp
     return rois
 
 def preprocess_image(image):
-    """Apply binary thresholding to the image for better band detection"""
+    """Apply adaptive thresholding to the image for better band detection"""
     img_array = np.array(image)
-    _, img_thresh = cv2.threshold(img_array, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    img_blur = cv2.GaussianBlur(img_array, (5, 5), 0)
+    img_thresh = cv2.adaptiveThreshold(img_blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY_INV, 11, 2)
     return img_thresh
 
 def main():
@@ -67,7 +68,7 @@ def main():
             st.session_state.roi_list = {}
 
         if auto_detect:
-            auto_rois = auto_detect_bands(thresholded_image, image, min_size, max_size, aspect_ratio)
+            auto_rois = auto_detect_bands(thresholded_image, min_size, max_size, aspect_ratio)
             for i, roi_coords in enumerate(auto_rois):
                 name = f'Auto-{i}'
                 st.session_state.roi_list[name] = {'coords': roi_coords}
