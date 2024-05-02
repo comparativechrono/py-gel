@@ -13,17 +13,16 @@ def calculate_intensity(image, roi_coords):
     mean_intensity = np.mean(roi_array)
     return total_intensity, mean_intensity
 
-def auto_detect_bands(image):
+def auto_detect_bands(image, min_contour_area):
     """Automatically detect bands in the gel image using image processing"""
     img_array = np.array(image)
-    # Convert to binary using Otsu's thresholding
-    _, thresh = cv2.threshold(img_array, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    # Find contours (bands)
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    blurred = cv2.GaussianBlur(img_array, (5, 5), 0)
+    edged = cv2.Canny(blurred, 50, 150)
+    contours, _ = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     rois = []
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)
-        if w > 20 and h > 20:  # Filter out too small contours
+        if cv2.contourArea(cnt) > min_contour_area:
             rois.append((x, y, x+w, y+h))
     return rois
 
@@ -32,16 +31,15 @@ def main():
 
     uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
-        image = Image.open(uploaded_file).convert('L')  # Convert image to grayscale
+        image = Image.open(uploaded_file).convert('L')
         
-        # Invert colors option
         invert = st.checkbox("Invert image colors")
         if invert:
             image = ImageOps.invert(image)
 
         img_array = np.array(image)
 
-        # Define interface for manual ROI adjustments
+        # Sidebar for controls
         with st.sidebar:
             st.write("Manual ROI Coordinates")
             x_start = st.slider('Start X', min_value=0, max_value=image.width, value=0)
@@ -50,13 +48,16 @@ def main():
             y_end = st.slider('End Y', min_value=0, max_value=image.height, value=int(image.height/2))
             roi_name = st.text_input("Name this ROI", "")
 
-        # Store multiple ROIs
+            st.write("Settings")
+            min_contour_area = st.slider("Min Contour Area", min_value=10, max_value=1000, value=100, step=10)
+            auto_detect = st.button('Auto-detect Bands')
+
         if 'roi_list' not in st.session_state:
             st.session_state.roi_list = {}
 
-        # Buttons for auto-detection and manual ROI management
-        if st.button('Auto-detect Bands'):
-            auto_rois = auto_detect_bands(image)
+        # Auto-detection and manual confirmation buttons
+        if auto_detect:
+            auto_rois = auto_detect_bands(image, min_contour_area)
             for i, roi_coords in enumerate(auto_rois):
                 name = f'Auto-{i}'
                 st.session_state.roi_list[name] = {'coords': roi_coords}
@@ -71,13 +72,9 @@ def main():
             coords = roi['coords']
             rect = plt.Rectangle((coords[0], coords[1]), coords[2] - coords[0], coords[3] - coords[1], linewidth=1, edgecolor='r', facecolor='none')
             ax.add_patch(rect)
-
-        # Temporary ROI for visualization (blue dashed rectangle)
-        rect = plt.Rectangle((x_start, y_start), x_end - x_start, y_end - y_start, linewidth=1, edgecolor='b', facecolor='none', linestyle="--")
-        ax.add_patch(rect)
         st.pyplot(fig)
 
-        # Display intensities for all ROIs
+        # Intensity calculations
         if st.button('Calculate Intensities for All ROIs'):
             results = []
             for name, roi in st.session_state.roi_list.items():
